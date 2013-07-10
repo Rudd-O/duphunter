@@ -170,6 +170,7 @@ class HashAggregator(QObject):
             item = QtGui.QStandardItem()
             item.setText(sum_)
             item.setData(sum_)
+            item.setSelectable(False)
             self.model.appendRow(item)
         str_path = str(path.toUtf8())
         fn = os.path.basename(str_path)
@@ -180,7 +181,6 @@ class HashAggregator(QObject):
         ditem.setData(path)
         fitem.setText(fn)
         ditem.setText(dn)
-        ditem.setTextAlignment(QtCore.Qt.AlignRight)
         item.insertRow(item.rowCount(), [fitem, ditem])
 
 
@@ -202,6 +202,7 @@ class DupfinderApp(QApplication):
         self.main_window.treeView.setModel(self.aggregator.model)
         header = self.main_window.treeView.header()
         header.setResizeMode(QtGui.QHeaderView.ResizeToContents)
+        header.setStretchLastSection(True)
         self.aggregator.model.rowsInserted.connect(self._autoexpand_rows)
         self.dupedetector.duplicate_found.connect(self.aggregator.add)
         self.aggregator.added.connect(self.on_duplicate_found)
