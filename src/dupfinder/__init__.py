@@ -201,7 +201,7 @@ class DupfinderApp(QApplication):
         self.aggregator = HashAggregator()
         self.main_window.treeView.setModel(self.aggregator.model)
         header = self.main_window.treeView.header()
-        header.setResizeMode(QtGui.QHeaderView.ResizeToContents)
+        # header.setResizeMode(QtGui.QHeaderView.ResizeToContents)
         header.setStretchLastSection(True)
         self.aggregator.model.rowsInserted.connect(self._autoexpand_rows)
         self.dupedetector.duplicate_found.connect(self.aggregator.add)
