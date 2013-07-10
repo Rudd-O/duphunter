@@ -187,6 +187,7 @@ class HashAggregator(QObject):
 class DupfinderApp(QApplication):
     def __init__(self, *args, **kwargs):
         QApplication.__init__(self, *args, **kwargs)
+        self.settings = QtCore.QSettings("dupfinder", "dupfinder")
         self.main_window = uic.loadUi(
             os.path.join(
                 os.path.dirname(__file__), "dupfinder.ui"
@@ -206,6 +207,18 @@ class DupfinderApp(QApplication):
         self.aggregator.added.connect(self.on_duplicate_found)
         self.scanners = {}
         self.aboutToQuit.connect(self.stop_scanners)
+        self.main_window.restoreGeometry(
+            self.settings.value("mainWindowGeometry").toByteArray()
+        )
+        self.main_window.restoreState(
+            self.settings.value("mainWindowState").toByteArray()
+        )
+        self.main_window.closeEvent = self.main_window_closed
+
+    def main_window_closed(self, event):
+        self.settings.setValue("mainWindowGeometry", self.main_window.saveGeometry())
+        self.settings.setValue("mainWindowState", self.main_window.saveState())
+        event.accept()
 
     def _autoexpand_rows(self, modelindex, start_int, end_int):
         '''Autoexpands rows added to the treeview as they are added'''
