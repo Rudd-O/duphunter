@@ -200,8 +200,8 @@ class DupfinderApp(QApplication):
         self.dupedetector = DuplicateDetector()
         self.aggregator = HashAggregator()
         self.main_window.treeView.setModel(self.aggregator.model)
+        self.main_window.treeView.setColumnWidth(0, 300)
         header = self.main_window.treeView.header()
-        # header.setResizeMode(QtGui.QHeaderView.ResizeToContents)
         header.setStretchLastSection(True)
         self.aggregator.model.rowsInserted.connect(self._autoexpand_rows)
         self.dupedetector.duplicate_found.connect(self.aggregator.add)
@@ -214,11 +214,23 @@ class DupfinderApp(QApplication):
         self.main_window.restoreState(
             self.settings.value("mainWindowState").toByteArray()
         )
+        colwidth0 = self.settings.value("columnWidth0")
+        colwidth1 = self.settings.value("columnWidth1")
+        if colwidth0.toInt()[1]:
+            self.main_window.treeView.setColumnWidth(0, colwidth0.toInt()[0])
+        if colwidth1.toInt()[1]:
+            self.main_window.treeView.setColumnWidth(1, colwidth0.toInt()[0])
         self.main_window.closeEvent = self.main_window_closed
 
     def main_window_closed(self, event):
         self.settings.setValue("mainWindowGeometry", self.main_window.saveGeometry())
         self.settings.setValue("mainWindowState", self.main_window.saveState())
+        self.settings.setValue("columnWidth0",
+            self.main_window.treeView.columnWidth(0)
+        )
+        self.settings.setValue("columnWidth1",
+            self.main_window.treeView.columnWidth(1)
+        )
         event.accept()
 
     def _autoexpand_rows(self, modelindex, start_int, end_int):
