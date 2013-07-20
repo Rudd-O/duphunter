@@ -27,8 +27,8 @@ def estimate_scan_dir(folder, filter_func):
     for path, subfolders, files in os.walk(folder):
         for f in files:
             full_path = os.path.join(path, f)
-            if not filter_func(full_path): continue
             if os.path.isfile(full_path) and not os.path.islink(full_path):
+                if not filter_func(full_path): continue
                 counter = counter + 1
     return counter
 
@@ -40,8 +40,8 @@ def scan_dir(folder, filter_func, hashfunc):
     for path, subfolders, files in os.walk(folder):
         for f in files:
             full_path = os.path.join(path, f)
-            if not filter_func(full_path): continue
             if os.path.isfile(full_path) and not os.path.islink(full_path):
+                if not filter_func(full_path): continue
                 sum_ = md5ify(full_path)
                 yield full_path, sum_
 
