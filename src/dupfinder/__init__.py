@@ -61,7 +61,7 @@ class TreeHasher(QObject):
     If the scanner is stopped with stop(), then no signals are emitted anymore.
     '''
 
-    hashed = pyqtSignal((str, str))
+    hashed = pyqtSignal((QtCore.QByteArray, str))
     progress = pyqtSignal((int,int))
     begun = pyqtSignal()
     finished = pyqtSignal()
@@ -92,7 +92,7 @@ class TreeHasher(QObject):
             for full_path, sum_ in scan_dir(self.directory, self.filter_func, self.hasher):
                 if self.stopped: break
                 counter = counter + 1
-                self.hashed.emit(full_path, sum_)
+                self.hashed.emit(QtCore.QByteArray(full_path), sum_)
                 self.progress.emit(counter, numfiles)
             if not self.stopped: self.finished.emit()
         except BaseException, e:
@@ -123,7 +123,7 @@ class DuplicateDetector(QObject):
     add() is already known and has the same hash, it is ignored.
     '''
 
-    duplicateFound = pyqtSignal((str, str))
+    duplicateFound = pyqtSignal((str, QtCore.QByteArray))
 
     def __init__(self):
         QObject.__init__(self)
@@ -173,7 +173,7 @@ class HashAggregator(QObject):
             item.setData(sum_)
             item.setSelectable(False)
             self.model.appendRow(item)
-        str_path = str(path.toLocal8Bit()) # here I *know* the path string
+        str_path = str(path) # here I *know* the path is a regular string
         fn = os.path.basename(str_path)
         dn = os.path.dirname(str_path)
         fitem = QtGui.QStandardItem()
@@ -292,11 +292,9 @@ class DupfinderApp(QApplication):
         event.accept()
 
     def dispatch_scan(self, qstr_directory):
-        qstr_directory = qstr_directory.toLocal8Bit()
-        chosen_directory = unicode(qstr_directory, 'utf-8')
-        chosen_directory = os.path.abspath(chosen_directory)
+        qstr_directory = os.path.abspath(str(qstr_directory.toLocal8Bit()))
         flt = lambda p: not os.path.basename(p).startswith(".")
-        scanner = TreeHasher(chosen_directory, flt)
+        scanner = TreeHasher(qstr_directory, flt)
         scanner.hashed.connect(lambda p,s: self.dupedetector.add(s,p))
         scanner.begun.connect(lambda: self.on_scan_begun(scanner))
         scanner.finished.connect(lambda: self.on_scan_finished(scanner))
@@ -342,24 +340,33 @@ class DupfinderApp(QApplication):
                 path = source_model.index(m, 1, index)
                 action, correct = source_model.itemFromIndex(action).data().toInt()
                 assert correct, "could not convert the action of a row to an int"
-                path = source_model.itemFromIndex(path).data().toString()
+                path = source_model.itemFromIndex(path).data()
                 if action == ACTION_REMOVE:
-                    paths_to_delete.append((rowmarker,str(path.toLocal8Bit())))
+                    paths_to_delete.append((rowmarker,str(path.toByteArray())))
         self.progressbar.setVisible(True)
+        deleted = 0
+        not_deleted = 0
         for n, pair in enumerate(paths_to_delete):
             index, p = pair
             fn = os.path.basename(p)
-            self.main_window.statusbar.showMessage(
-                QString("Deleting ") + QString.fromLocal8Bit(fn) + QString("...")
-            )
-            row = index.row()
-            print "removing row", row, "with path", fn
-            parentindex = index.parent()
-            source_model.removeRows(row, 1, parentindex)
+            try:
+                os.unlink(p)
+                self.main_window.statusbar.showMessage(
+                    QString("Removed ") + QString.fromLocal8Bit(fn) + QString("...")
+                )
+                row = index.row()
+                parentindex = index.parent()
+                source_model.removeRows(row, 1, parentindex)
+                deleted = deleted + 1
+            except Exception:
+                self.main_window.statusbar.showMessage(
+                    QString("Error removing ") + QString.fromLocal8Bit(fn) + QString("...")
+                )
+                not_deleted = not_deleted + 1
             self.progressbar.setMaximum(len(paths_to_delete))
             self.progressbar.setValue(n+1)
         self.main_window.statusbar.showMessage(
-            QString("Deleted %s files" % len(paths_to_delete))
+            QString("Removed %s files, could not remove %s files" % (deleted, not_deleted))
         )
         self.progressbar.setVisible(False)
 
@@ -400,13 +407,13 @@ class DupfinderApp(QApplication):
     def on_scan_begun(self, scanner):
         name = os.path.basename(scanner.directory)
         self.main_window.statusbar.showMessage(
-            QString("Scanning ") + QString(name) + QString("...")
+            QString("Scanning ") + QString.fromLocal8Bit(name) + QString("...")
         )
 
     def on_scan_finished(self, scanner):
         name = os.path.basename(scanner.directory)
         self.main_window.statusbar.showMessage(
-            QString("Done scanning ") + QString(name)
+            QString("Done scanning ") + QString.fromLocal8Bit(name)
         )
         del self.scanners[scanner]
         self.progressbar.setVisible(bool(self.scanners.keys()))
@@ -414,7 +421,7 @@ class DupfinderApp(QApplication):
     def on_scan_error(self, scanner, e):
         name = os.path.basename(scanner.directory)
         self.main_window.statusbar.showMessage(
-            QString("Error scanning ") + QString(name) + QString(": ") + QString(unicode(e))
+            QString("Error scanning ") + QString.fromLocal8Bit(name) + QString(": ") + QString(unicode(e))
         )
         del self.scanners[scanner]
         self.progressbar.setVisible(bool(self.scanners.keys()))
