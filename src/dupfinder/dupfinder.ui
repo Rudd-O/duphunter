@@ -56,14 +56,14 @@
         <item>
          <widget class="QPushButton" name="selectFirst">
           <property name="text">
-           <string>Select every first match</string>
+           <string>Select every &amp;first match</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QPushButton" name="invertSelection">
           <property name="text">
-           <string>Invert selection</string>
+           <string>Invert selecti&amp;on</string>
           </property>
          </widget>
         </item>
@@ -83,14 +83,14 @@
         <item>
          <widget class="QPushButton" name="removeThis">
           <property name="text">
-           <string>Remove this duplicate</string>
+           <string>&amp;Remove selected</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QPushButton" name="keepThis">
           <property name="text">
-           <string>Keep this duplicate</string>
+           <string>&amp;Keep selected</string>
           </property>
          </widget>
         </item>
@@ -110,14 +110,14 @@
         <item>
          <widget class="QPushButton" name="cancel">
           <property name="text">
-           <string>Cancel</string>
+           <string>&amp;Cancel</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QPushButton" name="execute">
           <property name="text">
-           <string>Execute</string>
+           <string>&amp;Execute</string>
           </property>
          </widget>
         </item>
