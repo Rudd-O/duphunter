@@ -119,11 +119,11 @@ class TreeHasher(QObject):
 
 class DuplicateDetector(QObject):
     '''
-    Receives pairs of (hash, path) through its add() method.  Emits signal duplicate_found for each received pair (hash, path) if the hash is seen more than once.  If the path sent via
+    Receives pairs of (hash, path) through its add() method.  Emits signal duplicateFound for each received pair (hash, path) if the hash is seen more than once.  If the path sent via
     add() is already known and has the same hash, it is ignored.
     '''
 
-    duplicate_found = pyqtSignal((str, str))
+    duplicateFound = pyqtSignal((str, str))
 
     def __init__(self):
         QObject.__init__(self)
@@ -137,8 +137,8 @@ class DuplicateDetector(QObject):
         if path in paths: return
         paths.append(path)
         if len(paths) < 2: return
-        if len(paths) == 2: self.duplicate_found.emit(sum_, paths[0])
-        self.duplicate_found.emit(sum_, paths[-1])
+        if len(paths) == 2: self.duplicateFound.emit(sum_, paths[0])
+        self.duplicateFound.emit(sum_, paths[-1])
 
 
 class HashAggregator(QObject):
