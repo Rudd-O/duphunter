@@ -140,6 +140,8 @@ class DuplicateDetector(QObject):
         if len(paths) == 2: self.duplicateFound.emit(sum_, paths[0])
         self.duplicateFound.emit(sum_, paths[-1])
 
+ACTION_KEEP = 1
+ACTION_REMOVE = 2
 
 class HashAggregator(QObject):
     '''
@@ -153,11 +155,10 @@ class HashAggregator(QObject):
         '''Pass the TreeModel instance here'''
         QObject.__init__(self)
         self.model = QtGui.QStandardItemModel()
-        header = [QtGui.QStandardItem(),QtGui.QStandardItem()]
-        header[0].setText("Matches")
-        header[1].setText("Folder")
-        self.model.setHorizontalHeaderItem(0, header[0])
-        self.model.setHorizontalHeaderItem(1, header[1])
+        header = [QtGui.QStandardItem(),QtGui.QStandardItem(),QtGui.QStandardItem()]
+        for n, t in enumerate(["Action", "Matches", "Folder"]):
+            header[n].setText(t)
+            self.model.setHorizontalHeaderItem(n, header[n])
 
     def add(self, sum_, path):
         '''Aggregate the sum and the path to the self.model structure.'''
@@ -172,17 +173,40 @@ class HashAggregator(QObject):
             item.setData(sum_)
             item.setSelectable(False)
             self.model.appendRow(item)
-        str_path = str(path.toUtf8())
+        str_path = str(path.toLocal8Bit()) # here I *know* the path string
         fn = os.path.basename(str_path)
         dn = os.path.dirname(str_path)
         fitem = QtGui.QStandardItem()
         ditem = QtGui.QStandardItem()
         fitem.setData(path)
         ditem.setData(path)
-        fitem.setText(fn)
-        ditem.setText(dn)
-        item.insertRow(item.rowCount(), [fitem, ditem])
+        fitem.setText(QString.fromUtf8(fn))
+        ditem.setText(QString.fromUtf8(dn))
+        aitem = QtGui.QStandardItem()
+        aitem.setText("Keep")
+        aitem.setData(ACTION_KEEP)
+        item.insertRow(item.rowCount(), [aitem, fitem, ditem])
 
+class TreeSortFilterProxyModel(QtGui.QSortFilterProxyModel):
+    def __init__(self, *args, **kwargs):
+        QtGui.QSortFilterProxyModel.__init__(self, *args, **kwargs)
+        self.text_filter = QtCore.QString("")
+
+    def filterAcceptsRow(self, sourceRow, sourceParent):
+        '''Search every match row for text, substring, and if it matches,
+        show the row'''
+        index0 = self.sourceModel().index(sourceRow, 0, sourceParent)
+        index1 = self.sourceModel().index(sourceRow, 1, sourceParent)
+        i = self.sourceModel().itemFromIndex
+        is_hash = not i(index1).text()
+        if is_hash: return True # we always show the hash, temporarily at least
+        string = i(index1).data().toString()
+        if self.text_filter in string: return True
+        return False
+
+    def setTextFilter(self, text_filter):
+        self.text_filter = text_filter
+        self.invalidateFilter()
 
 class DupfinderApp(QApplication):
     def __init__(self, *args, **kwargs):
@@ -196,30 +220,71 @@ class DupfinderApp(QApplication):
         self.progressbar = QProgressBar()
         self.progressbar.setVisible(False)
         self.main_window.statusbar.addPermanentWidget(self.progressbar)
-        self.main_window.pushButton.clicked.connect(self.pushButton_clicked)
+        self.main_window.addFolder.clicked.connect(self.addFolder_clicked)
+        self.main_window.removeThis.clicked.connect(self.removeThis_clicked)
+        self.main_window.keepThis.clicked.connect(self.keepThis_clicked)
+        self.main_window.selectFirst.clicked.connect(self.selectFirst_clicked)
+        self.main_window.invertSelection.clicked.connect(self.invertSelection_clicked)
+        self.main_window.execute.clicked.connect(self.execute_clicked)
+        self.main_window.cancel.clicked.connect(self.cancel_clicked)
+        self.main_window.filter.textChanged.connect(self.filter_textChanged)
+
+        # create dupe detector and aggregator, wire them together
         self.dupedetector = DuplicateDetector()
         self.aggregator = HashAggregator()
-        self.main_window.treeView.setModel(self.aggregator.model)
-        self.main_window.treeView.setColumnWidth(0, 300)
-        header = self.main_window.treeView.header()
-        header.setStretchLastSection(True)
-        self.aggregator.model.rowsInserted.connect(self._autoexpand_rows)
-        self.dupedetector.duplicate_found.connect(self.aggregator.add)
-        self.aggregator.added.connect(self.on_duplicate_found)
-        self.scanners = {}
-        self.aboutToQuit.connect(self.stop_scanners)
+        self.dupedetector.duplicateFound.connect(self.aggregator.add)
+
+        # set up the aggregator and then the filter model to filter the aggregator model
+        self.filter_model = TreeSortFilterProxyModel()
+        self.filter_model.setSourceModel(self.aggregator.model)
+        self.main_window.treeView.setModel(self.filter_model)
+
+        # ensure that rows autoexpand...
+        def autoexpand_rows(modelindex, start_int, end_int):
+            '''Autoexpands rows added to the treeview as they are added'''
+            istoplevel = not modelindex.isValid()
+            if istoplevel:
+                self.main_window.treeView.setFirstColumnSpanned(start_int, modelindex, True)
+            else:
+                self.main_window.treeView.setExpanded(modelindex, True)
+        self.filter_model.rowsInserted.connect(autoexpand_rows)
+
+        # restore window state
         self.main_window.restoreGeometry(
             self.settings.value("mainWindowGeometry").toByteArray()
         )
         self.main_window.restoreState(
             self.settings.value("mainWindowState").toByteArray()
         )
+
+        # finesse the column widths...
+        self.main_window.treeView.setColumnWidth(0, 50)
+        self.main_window.treeView.setColumnWidth(1, 300)
+        self.main_window.treeView.header().setStretchLastSection(True)
+
+        # but restore their state
         colwidth0 = self.settings.value("columnWidth0")
         colwidth1 = self.settings.value("columnWidth1")
+        colwidth2 = self.settings.value("columnWidth2")
         if colwidth0.toInt()[1]:
             self.main_window.treeView.setColumnWidth(0, colwidth0.toInt()[0])
         if colwidth1.toInt()[1]:
-            self.main_window.treeView.setColumnWidth(1, colwidth0.toInt()[0])
+            self.main_window.treeView.setColumnWidth(1, colwidth1.toInt()[0])
+        if colwidth2.toInt()[1]:
+            self.main_window.treeView.setColumnWidth(2, colwidth2.toInt()[0])
+
+        # set up scanners
+        self.scanners = {}
+        def stop_scanners():
+            # this is the only thing that stops the program from dying when closed
+            # abruptly when very recently open.  to stop the scanners!
+            for s in list(self.scanners.keys()):
+                s.stop()
+            for s in list(self.scanners.keys()):
+                s.wait()
+                del self.scanners[s]
+        self.aboutToQuit.connect(stop_scanners)
+
         self.main_window.closeEvent = self.main_window_closed
 
     def main_window_closed(self, event):
@@ -231,23 +296,15 @@ class DupfinderApp(QApplication):
         self.settings.setValue("columnWidth1",
             self.main_window.treeView.columnWidth(1)
         )
+        self.settings.setValue("columnWidth2",
+            self.main_window.treeView.columnWidth(2)
+        )
         event.accept()
 
-    def _autoexpand_rows(self, modelindex, start_int, end_int):
-        '''Autoexpands rows added to the treeview as they are added'''
-        self.main_window.treeView.expand(modelindex)
-
-    def stop_scanners(self):
-        # this is the only thing that stops the program from dying when closed
-        # abruptly when very recently open.  to stop the scanners!
-        for s in list(self.scanners.keys()):
-            s.stop()
-        for s in list(self.scanners.keys()):
-            s.wait()
-            del self.scanners[s]
-
     def dispatch_scan(self, qstr_directory):
-        chosen_directory = os.path.normpath(str(qstr_directory.toUtf8()))
+        qstr_directory = qstr_directory.toLocal8Bit()
+        chosen_directory = unicode(qstr_directory, 'utf-8')
+        chosen_directory = os.path.abspath(chosen_directory)
         flt = lambda p: not os.path.basename(p).startswith(".")
         scanner = TreeHasher(chosen_directory, flt)
         scanner.hashed.connect(lambda p,s: self.dupedetector.add(s,p))
@@ -259,14 +316,97 @@ class DupfinderApp(QApplication):
         self.progressbar.setVisible(True)
         scanner.start()
 
-    def pushButton_clicked(self):
+    def addFolder_clicked(self):
         chosen_directory = QFileDialog.getExistingDirectory(
             self.main_window,
             "Select folder to scan",
              options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
         return self.dispatch_scan(chosen_directory)
-    
+
+    def _setSelectionAction(self, action_id, action_text):
+        source_model = self.filter_model.sourceModel()
+        filter_selection = self.main_window.treeView.selectionModel().selection()
+        for index in filter_selection.indexes():
+            if index.column() != 0: continue
+            source_index = self.filter_model.mapToSource(index)
+            item = source_model.itemFromIndex(source_index)
+            item.setText(action_text)
+            item.setData(action_id)
+
+    def keepThis_clicked(self):
+        return self._setSelectionAction(ACTION_KEEP, "Keep")
+
+    def removeThis_clicked(self):
+        return self._setSelectionAction(ACTION_REMOVE, "Remove")
+
+    def execute_clicked(self):
+        '''commits actions to disk'''
+        source_model = self.filter_model.sourceModel()
+        paths_to_delete = []
+        for n in xrange(source_model.rowCount()):
+            index = source_model.index(n, 0)
+            for m in reversed(xrange(source_model.rowCount(index))):
+                rowmarker = source_model.index(m, 0, index)
+                action = source_model.index(m, 0, index)
+                path = source_model.index(m, 1, index)
+                action, correct = source_model.itemFromIndex(action).data().toInt()
+                assert correct, "could not convert the action of a row to an int"
+                path = source_model.itemFromIndex(path).data().toString()
+                if action == ACTION_REMOVE:
+                    paths_to_delete.append((rowmarker,str(path.toLocal8Bit())))
+        self.progressbar.setVisible(True)
+        for n, pair in enumerate(paths_to_delete):
+            index, p = pair
+            fn = os.path.basename(p)
+            self.main_window.statusbar.showMessage(
+                QString("Deleting ") + QString.fromLocal8Bit(fn) + QString("...")
+            )
+            row = index.row()
+            print "removing row", row, "with path", fn
+            parentindex = index.parent()
+            source_model.removeRows(row, 1, parentindex)
+            self.progressbar.setMaximum(len(paths_to_delete))
+            self.progressbar.setValue(n+1)
+        self.main_window.statusbar.showMessage(
+            QString("Deleted %s files" % len(paths_to_delete))
+        )
+        self.progressbar.setVisible(False)
+
+    def cancel_clicked(self):
+        self.main_window.close()
+
+    def selectFirst_clicked(self):
+        selection_model = self.main_window.treeView.selectionModel()
+        '''selects every first match on every toplevel item'''
+        for n in xrange(self.filter_model.rowCount()):
+            index = self.filter_model.index(n, 0)
+            if self.filter_model.hasChildren(index):
+                first_child = self.filter_model.index(0, 0, index)
+                selection_model.select(first_child,
+                    QtGui.QItemSelectionModel.Select | QtGui.QItemSelectionModel.Rows
+                )
+
+    def invertSelection_clicked(self):
+        selection_model = self.main_window.treeView.selectionModel()
+        '''selects every first match on every toplevel item'''
+        for n in xrange(self.filter_model.rowCount()):
+            index = self.filter_model.index(n, 0)
+            if self.filter_model.hasChildren(index):
+                for m in xrange(self.filter_model.rowCount(index)):
+                    child = self.filter_model.index(m, 0, index)
+                    if selection_model.isSelected(child):
+                        selection_model.select(child,
+                            QtGui.QItemSelectionModel.Deselect | QtGui.QItemSelectionModel.Rows
+                        )
+                    else:
+                        selection_model.select(child,
+                            QtGui.QItemSelectionModel.Select | QtGui.QItemSelectionModel.Rows
+                        )
+
+    def filter_textChanged(self, new_text):
+        self.filter_model.setTextFilter(new_text)
+
     def on_scan_begun(self, scanner):
         name = os.path.basename(scanner.directory)
         self.main_window.statusbar.showMessage(
@@ -295,10 +435,6 @@ class DupfinderApp(QApplication):
         allfiles = sum([ x[1] for x in self.scanners.values() ])
         self.progressbar.setMaximum(allfiles)
         self.progressbar.setValue(done)
-
-    def on_duplicate_found(self, sum_, path):
-        # really, there is nothing to do here
-        pass
 
     def exec_(self):
         self.main_window.show()
