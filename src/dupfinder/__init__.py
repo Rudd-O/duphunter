@@ -13,6 +13,10 @@ from PyQt4 import QtGui
 from PyQt4.QtGui import QApplication, QFileDialog, QProgressBar
 from threading import Thread, Lock
 import cPickle
+from pkg_resources import Requirement, resource_filename, DistributionNotFound
+
+__version__ = '0.0.1'
+
 
 class HashCache:
     def __init__(self):
@@ -274,11 +278,15 @@ class DupfinderApp(QApplication):
     def __init__(self, *args, **kwargs):
         QApplication.__init__(self, *args, **kwargs)
         self.settings = QtCore.QSettings("dupfinder", "dupfinder")
-        self.main_window = uic.loadUi(
-            os.path.join(
+        try:
+            uifile = resource_filename(
+                Requirement.parse("dupfinder"), "dupfinder.ui"
+            )
+        except DistributionNotFound:
+            uifile = os.path.join(
                 os.path.dirname(__file__), "dupfinder.ui"
             )
-        )
+        self.main_window = uic.loadUi(uifile)
         self.progressbar = QProgressBar()
         self.progressbar.setVisible(False)
         self.main_window.statusbar.addPermanentWidget(self.progressbar)
