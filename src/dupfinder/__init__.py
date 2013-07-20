@@ -263,15 +263,10 @@ class DupfinderApp(QApplication):
         self.main_window.treeView.header().setStretchLastSection(True)
 
         # but restore their state
-        colwidth0 = self.settings.value("columnWidth0")
-        colwidth1 = self.settings.value("columnWidth1")
-        colwidth2 = self.settings.value("columnWidth2")
-        if colwidth0.toInt()[1]:
-            self.main_window.treeView.setColumnWidth(0, colwidth0.toInt()[0])
-        if colwidth1.toInt()[1]:
-            self.main_window.treeView.setColumnWidth(1, colwidth1.toInt()[0])
-        if colwidth2.toInt()[1]:
-            self.main_window.treeView.setColumnWidth(2, colwidth2.toInt()[0])
+        for col in range(3):
+            colwidth, worked = self.settings.value("columnWidth%s"%col).toInt()
+            if worked:
+                self.main_window.treeView.setColumnWidth(col, colwidth)
 
         # set up scanners
         self.scanners = {}
@@ -290,15 +285,10 @@ class DupfinderApp(QApplication):
     def main_window_closed(self, event):
         self.settings.setValue("mainWindowGeometry", self.main_window.saveGeometry())
         self.settings.setValue("mainWindowState", self.main_window.saveState())
-        self.settings.setValue("columnWidth0",
-            self.main_window.treeView.columnWidth(0)
-        )
-        self.settings.setValue("columnWidth1",
-            self.main_window.treeView.columnWidth(1)
-        )
-        self.settings.setValue("columnWidth2",
-            self.main_window.treeView.columnWidth(2)
-        )
+        for col in range(3):
+            self.settings.setValue("columnWidth%s"%col,
+                self.main_window.treeView.columnWidth(col)
+            )
         event.accept()
 
     def dispatch_scan(self, qstr_directory):
