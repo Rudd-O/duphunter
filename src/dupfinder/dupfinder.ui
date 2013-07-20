@@ -22,14 +22,17 @@
         <item>
          <widget class="QPushButton" name="addFolder">
           <property name="text">
-           <string>Add folder...</string>
+           <string>&amp;Add folder...</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QLabel" name="filterLabel">
           <property name="text">
-           <string>      Filter: </string>
+           <string>      &amp;Filter: </string>
+          </property>
+          <property name="buddy">
+           <cstring>filter</cstring>
           </property>
          </widget>
         </item>
@@ -56,7 +59,7 @@
         <item>
          <widget class="QPushButton" name="selectFirst">
           <property name="text">
-           <string>Select every &amp;first match</string>
+           <string>Select every first &amp;match</string>
           </property>
          </widget>
         </item>
