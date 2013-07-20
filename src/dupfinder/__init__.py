@@ -368,7 +368,7 @@ class DupfinderApp(QApplication):
         self.main_window.statusbar.showMessage(
             QString("Removed %s files, could not remove %s files" % (deleted, not_deleted))
         )
-        self.progressbar.setVisible(False)
+        self.progressbar.setVisible(bool(self.scanners.keys()))
 
     def cancel_clicked(self):
         self.main_window.close()
