@@ -12,6 +12,45 @@ from PyQt4 import uic
 from PyQt4 import QtGui
 from PyQt4.QtGui import QApplication, QFileDialog, QProgressBar
 from threading import Thread, Lock
+import cPickle
+
+class HashCache:
+    def __init__(self):
+        self.store = {}
+        self.lock = Lock()
+
+    def load(self, path):
+        with self.lock:
+            cachefile = file(path)
+            self.store = cPickle.load(cachefile)
+
+    def save(self, path):
+        with self.lock:
+            cachefile = file(path, 'wb')
+            cPickle.dump(self.store, cachefile)
+            cachefile.flush()
+
+    def get_cached_entry(self, cachename, obj, revision):
+        '''Returns a cached value from a particular cache, so long as
+        the revision hasn't changed'''
+        with self.lock:
+            if cachename not in self.store:
+                self.store[cachename] = {}
+            cache = self.store[cachename]
+            if not obj in cache:
+                return None
+            rev, value = cache[obj]
+            if rev != revision:
+                del cache[obj]
+                return None
+            return value
+
+    def set_cached_entry(self, cachename, obj, revision, value):
+        with self.lock:
+            if cachename not in self.store:
+                self.store[cachename] = {}
+            cache = self.store[cachename]
+            cache[obj] = (revision, value)
 
 def md5ify(filepath):
     f = open(filepath, 'rb')
@@ -32,17 +71,37 @@ def estimate_scan_dir(folder, filter_func):
                 counter = counter + 1
     return counter
 
-def scan_dir(folder, filter_func, hashfunc):
+def scan_dir(folder, filter_func, hashfunc, cacheobject=None):
     '''Scans a folder's files recursively and synchronously, adding the
     files' hash func results to the `sums` dictionary of lists, where the
     key is the result of the hash func, and the value is the list of files
     that compute to that hash func result.'''
+    try:
+        hashfuncname = hashfunc.func_name
+    except AttributeError:
+        try:
+            hashfuncname = hashfunc.__name__
+        except AttributeError:
+            hashfuncname = None
+
     for path, subfolders, files in os.walk(folder):
         for f in files:
             full_path = os.path.join(path, f)
             if os.path.isfile(full_path) and not os.path.islink(full_path):
                 if not filter_func(full_path): continue
+                if cacheobject and hashfuncname:
+                    mtime = os.stat(full_path).st_mtime
+                    sum_ = cacheobject.get_cached_entry(
+                        hashfuncname, full_path, mtime
+                    )
+                    if sum_ is not None:
+                        yield full_path, sum_
+                        continue
                 sum_ = md5ify(full_path)
+                if cacheobject and hashfuncname:
+                    cacheobject.set_cached_entry(
+                        hashfuncname, full_path, mtime, sum_
+                    )
                 yield full_path, sum_
 
 
@@ -67,7 +126,7 @@ class TreeHasher(QObject):
     finished = pyqtSignal()
     error = pyqtSignal((BaseException,))
 
-    def __init__(self, directory, filter_func=lambda: True, hasher=md5ify):
+    def __init__(self, directory, filter_func=lambda: True, hasher=md5ify, cacheobject=None):
         '''Initializes a duplicate finder for a particular directory.
 
         The hasher is a hash function which will take a path as only parameter
@@ -76,6 +135,8 @@ class TreeHasher(QObject):
         The filter_func parameter is a function which will take a path and
         return any value that boolean-evaluates to True if the path is to be
         scanned.
+
+        cacheobject must be an instance of HashCache.
         '''
         QObject.__init__(self)
         self.hasher = hasher
@@ -83,13 +144,14 @@ class TreeHasher(QObject):
         self.filter_func = filter_func
         self.t = None
         self.stopped = False
+        self.cache = cacheobject
 
     def _scan(self):
         if not self.stopped: self.begun.emit()
         try:
             numfiles = estimate_scan_dir(self.directory, self.filter_func)
             counter = 0
-            for full_path, sum_ in scan_dir(self.directory, self.filter_func, self.hasher):
+            for full_path, sum_ in scan_dir(self.directory, self.filter_func, self.hasher, self.cache):
                 if self.stopped: break
                 counter = counter + 1
                 self.hashed.emit(QtCore.QByteArray(full_path), sum_)
@@ -268,6 +330,13 @@ class DupfinderApp(QApplication):
             if worked:
                 self.main_window.treeView.setColumnWidth(col, colwidth)
 
+        # restore cache
+        self.cache = HashCache()
+        try:
+            self.cache.load(os.path.expanduser("~/.dupfinder.cache"))
+        except (IOError, EOFError):
+            pass
+
         # set up scanners
         self.scanners = {}
         def stop_scanners():
@@ -293,8 +362,8 @@ class DupfinderApp(QApplication):
 
     def dispatch_scan(self, qstr_directory):
         qstr_directory = os.path.abspath(str(qstr_directory.toLocal8Bit()))
-        flt = lambda p: not os.path.basename(p).startswith(".")
-        scanner = TreeHasher(qstr_directory, flt)
+        flt = lambda p: not os.path.basename(p).startswith(".") and os.stat(p).st_size > 0
+        scanner = TreeHasher(qstr_directory, flt, cacheobject = self.cache)
         scanner.hashed.connect(lambda p,s: self.dupedetector.add(s,p))
         scanner.begun.connect(lambda: self.on_scan_begun(scanner))
         scanner.finished.connect(lambda: self.on_scan_finished(scanner))
@@ -437,7 +506,12 @@ class DupfinderApp(QApplication):
         self.main_window.show()
         for path in self.arguments()[1:]:
             QTimer.singleShot(0, lambda path=path: self.dispatch_scan(path))
-        return QApplication.exec_()
+        retval = QApplication.exec_()
+        try:
+            self.cache.save(os.path.expanduser("~/.dupfinder.cache"))
+        except IOError:
+            raise
+        return retval
 
 
 def main():
