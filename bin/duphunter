@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
 import sys
-from dupfinder import main
+from duphunter import main
 
 sys.exit(main())

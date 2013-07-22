@@ -277,14 +277,14 @@ class TreeSortFilterProxyModel(QtGui.QSortFilterProxyModel):
 class DupfinderApp(QApplication):
     def __init__(self, *args, **kwargs):
         QApplication.__init__(self, *args, **kwargs)
-        self.settings = QtCore.QSettings("dupfinder", "dupfinder")
+        self.settings = QtCore.QSettings("duphunter", "duphunter")
         try:
             uifile = resource_filename(
-                Requirement.parse("dupfinder"), "dupfinder.ui"
+                Requirement.parse("duphunter"), "duphunter.ui"
             )
         except DistributionNotFound:
             uifile = os.path.join(
-                os.path.dirname(__file__), "dupfinder.ui"
+                os.path.dirname(__file__), "duphunter.ui"
             )
         self.main_window = uic.loadUi(uifile)
         self.progressbar = QProgressBar()
@@ -341,7 +341,7 @@ class DupfinderApp(QApplication):
         # restore cache
         self.cache = HashCache()
         try:
-            self.cache.load(os.path.expanduser("~/.dupfinder.cache"))
+            self.cache.load(os.path.expanduser("~/.duphunter.cache"))
         except (IOError, EOFError):
             pass
 
@@ -516,7 +516,7 @@ class DupfinderApp(QApplication):
             QTimer.singleShot(0, lambda path=path: self.dispatch_scan(path))
         retval = QApplication.exec_()
         try:
-            self.cache.save(os.path.expanduser("~/.dupfinder.cache"))
+            self.cache.save(os.path.expanduser("~/.duphunter.cache"))
         except IOError:
             raise
         return retval
