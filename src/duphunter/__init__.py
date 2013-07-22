@@ -15,7 +15,7 @@ from threading import Thread, Lock
 import cPickle
 from pkg_resources import resource_filename, DistributionNotFound
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 
 class HashCache:
