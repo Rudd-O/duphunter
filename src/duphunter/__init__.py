@@ -13,7 +13,7 @@ from PyQt4 import QtGui
 from PyQt4.QtGui import QApplication, QFileDialog, QProgressBar
 from threading import Thread, Lock
 import cPickle
-from pkg_resources import Requirement, resource_filename, DistributionNotFound
+from pkg_resources import resource_filename, DistributionNotFound
 
 __version__ = '0.1.2'
 
@@ -280,7 +280,7 @@ class DupfinderApp(QApplication):
         self.settings = QtCore.QSettings("duphunter", "duphunter")
         try:
             uifile = resource_filename(
-                Requirement.parse("duphunter"), "duphunter.ui"
+                __name__, "duphunter.ui"
             )
         except DistributionNotFound:
             uifile = os.path.join(
