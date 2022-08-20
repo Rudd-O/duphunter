@@ -19,14 +19,14 @@ class FileObject:
 	
 	def __init__ (self,pathname,sum):
 		if pathname is None:
-			raise FileObjectError, "Path passed to FileObject cannot be None"
+			raise FileObjectError("Path passed to FileObject cannot be None")
 		f  = open(pathname)
 		f.close()
 		
 		self.fullpathname = pathname
 		self.filename = basename(pathname)
 		if self.filename is None:
-			raise FileObjectError, "Calculated basename is None"
+			raise FileObjectError("Calculated basename is None")
 		
 		self.path = dirname(pathname)
 		self.md5sum = sum
@@ -73,7 +73,7 @@ class MD5FileProcessor:
 					#if fileobject is None:
 					#	print "Not opened file " + filename
 					#else:
-					if (tel.has_key(hash)):
+					if (hash in tel):
 						matches = tel[hash]
 					else:
 						matches = []
@@ -110,19 +110,19 @@ def shell_escape(string):
 	
 
 def mp3sum(file):
-	import commands
+	import subprocess
 	frames = 385
-	status,output = commands.getstatusoutput("mpg321 -sq -n %d %s | md5sum -"%(frames,shell_escape(file)))
+	status,output = subprocess.getstatusoutput("mpg321 -sq -n %d %s | md5sum -"%(frames,shell_escape(file)))
 	output = output.split(" ",1)
 	if status != 0:
-		raise Exception, "Error in mp3sum: return code %s"%(status)
+		raise Exception("Error in mp3sum: return code %s"%(status))
 	return output[0][0:32]
 
 # setfattr -n user.Dupfinder.mp3sum -v %s %s
 
 from extattr import getfattr,setfattr
 
-from Queue import Queue, Empty
+from queue import Queue, Empty
 
 class MD5FileProcessor2:
 	file = None
@@ -165,12 +165,12 @@ class MD5FileProcessor2:
 							thehash = mp3sum(thefile)
 							setfattr(thefile,"user.Dupfinder.mp3sum",thehash)
 		# 					print "Set into cache: %s"%thehash
-					except IOError,e:  # catch eoperation not supported
+					except IOError as e:  # catch eoperation not supported
 						if e.errno == 95: thehash = mp3sum(thefile) # just do the hash, and do not cache it
 						else: raise
 	# 				print "scanned %s with sum %s"%(thefile,thehash)
 					notify_function("scanned %s with sum %s"%(thefile,thehash))
-					if self.dictionary.has_key(thehash):
+					if thehash in self.dictionary:
 						self.dictionary[thehash].append(FileObject(thefile,thehash))
 						notify_new_dupe()
 					else: self.dictionary[thehash] = [FileObject(thefile,thehash)]
