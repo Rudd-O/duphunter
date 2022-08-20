@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import platform
 from setuptools import setup
 import os
 
@@ -24,6 +25,17 @@ classifiers = [
 'Topic :: Utilities',
 ]
 
+data_files = (
+    [
+        (
+            "/usr/share/applications",
+            ["applications/%s.desktop" % p for p in ["duphunter"]],
+        ),
+    ]
+    if platform.system() != "Darwin"
+    else []
+)
+
 setup(
 	name = 'duphunter',
 	version=version,
@@ -40,6 +52,7 @@ setup(
 	packages = ["duphunter"],
 	scripts = ["bin/duphunter"],
 	keywords = "duplicate file management",
+	data_files=data_files,
 	zip_safe=False,
 	include_package_data = True,
 )

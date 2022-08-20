@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Duphunter
+GenericName=Duplicate file finder
+Exec=duphunter
+Icon=duphunter
+Terminal=false
+TryExec=duphunter
+Type=Application
+StartupNotify=true
+MimeType=inode/directory;
+Categories=GTK;GNOME;System;Filesystem;X-GNOME-Utilities;
