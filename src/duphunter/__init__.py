@@ -347,6 +347,7 @@ class DupfinderApp(QApplication):
         self.filter_model = TreeSortFilterProxyModel()
         self.filter_model.setSourceModel(self.aggregator)
         self.main_window.treeView.setModel(self.filter_model)
+        self.main_window.treeView.setTextElideMode(QtCore.Qt.ElideMiddle)
 
         # ensure that rows autoexpand...
         def autoexpand_rows(parent, start_int, end_int):
@@ -418,6 +419,8 @@ class DupfinderApp(QApplication):
         def flt(p):
             bname = os.path.basename(p)
             return not bname.startswith(".") and os.stat(p).st_size > 0
+
+        qstr_directory = os.path.abspath(qstr_directory)
 
         scanner = TreeHasher(qstr_directory, flt, cacheobject=self.cache)
         scanner.hashed.connect(lambda p, s, m: self.dupedetector.add(s, p, m))
