@@ -224,16 +224,17 @@ class DuplicateDetector(QObject):
         """Add the pair sum, path to the duplicate detector, trigger signal
         if appropriate."""
         if sum_ not in self.dupes:
-            self.dupes[sum_] = set()
+            self.dupes[sum_] = dict()
         paths = self.dupes[sum_]
         if path in paths:
             return
         if len(paths) < 1:
-            paths.add(path)
+            paths[path] = mtime
             return
         if len(paths) == 1:
-            self.duplicateFound.emit(sum_, list(paths)[0], mtime)
-        paths.add(path)
+            first = list(paths.items())[0]
+            self.duplicateFound.emit(sum_, *first)
+        paths[path] = mtime
         self.duplicateFound.emit(sum_, path, mtime)
 
 
