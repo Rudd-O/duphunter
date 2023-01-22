@@ -3,11 +3,8 @@
 import sys
 import os
 import hashlib
-import signal
-import collections
-import time
 from PyQt5 import QtCore
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QItemSelectionModel
 from PyQt5 import uic
 from PyQt5 import QtGui
 from PyQt5.QtWidgets import QApplication, QFileDialog, QProgressBar
@@ -41,7 +38,7 @@ class HashCache:
             if cachename not in self.store:
                 self.store[cachename] = {}
             cache = self.store[cachename]
-            if not obj in cache:
+            if obj not in cache:
                 return None
             rev, value = cache[obj]
             if rev != revision:
@@ -100,13 +97,22 @@ def scan_dir(folder, filter_func, hashfunc, cacheobject=None):
                     continue
                 if cacheobject and hashfuncname:
                     mtime = os.stat(full_path).st_mtime
-                    sum_ = cacheobject.get_cached_entry(hashfuncname, full_path, mtime)
+                    sum_ = cacheobject.get_cached_entry(
+                        hashfuncname,
+                        full_path,
+                        mtime,
+                    )
                     if sum_ is not None:
                         yield full_path, sum_
                         continue
                 sum_ = md5ify(full_path)
                 if cacheobject and hashfuncname:
-                    cacheobject.set_cached_entry(hashfuncname, full_path, mtime, sum_)
+                    cacheobject.set_cached_entry(
+                        hashfuncname,
+                        full_path,
+                        mtime,
+                        sum_,
+                    )
                 yield full_path, sum_
 
 
@@ -132,7 +138,11 @@ class TreeHasher(QObject):
     error = pyqtSignal((BaseException,))
 
     def __init__(
-        self, directory, filter_func=lambda: True, hasher=md5ify, cacheobject=None
+        self,
+        directory,
+        filter_func=lambda: True,
+        hasher=md5ify,
+        cacheobject=None,
     ):
         """Initializes a duplicate finder for a particular directory.
 
@@ -182,7 +192,10 @@ class TreeHasher(QObject):
         self.t.start()
 
     def stop(self):
-        """Stops the scan.  It is an error to call this if the scan is not ongoing."""
+        """
+        Stops the scan.
+        It is an error to call this if the scan is not ongoing.
+        """
         self.stopped = True
 
     def wait(self):
@@ -194,8 +207,10 @@ class TreeHasher(QObject):
 
 class DuplicateDetector(QObject):
     """
-    Receives pairs of (hash, path) through its add() method.  Emits signal duplicateFound for each received pair (hash, path) if the hash is seen more than once.  If the path sent via
-    add() is already known and has the same hash, it is ignored.
+    Receives pairs of (hash, path) through its add() method.  Emits signal
+    duplicateFound for each received pair (hash, path) if the hash is seen
+    more than once.  If the path sent via add() is already known and has
+    the same hash, it is ignored.
     """
 
     duplicateFound = pyqtSignal((str, str))
@@ -235,7 +250,11 @@ class HashAggregator(QtGui.QStandardItemModel):
         """Pass the TreeModel instance here"""
         QtGui.QStandardItemModel.__init__(self)
         self.hashes = {}
-        header = [QtGui.QStandardItem(), QtGui.QStandardItem(), QtGui.QStandardItem()]
+        header = [
+            QtGui.QStandardItem(),
+            QtGui.QStandardItem(),
+            QtGui.QStandardItem(),
+        ]
         for n, t in enumerate(["Action", "Matches", "Folder"]):
             header[n].setText(t)
             self.setHorizontalHeaderItem(n, header[n])
@@ -273,7 +292,6 @@ class TreeSortFilterProxyModel(QtCore.QSortFilterProxyModel):
     def filterAcceptsRow(self, sourceRow, sourceParent):
         """Search every match row for text, substring, and if it matches,
         show the row"""
-        index0 = self.sourceModel().index(sourceRow, 0, sourceParent)
         index1 = self.sourceModel().index(sourceRow, 1, sourceParent)
         i = self.sourceModel().itemFromIndex
         is_hash = not i(index1).text()
@@ -305,7 +323,9 @@ class DupfinderApp(QApplication):
         self.main_window.removeThis.clicked.connect(self.removeThis_clicked)
         self.main_window.keepThis.clicked.connect(self.keepThis_clicked)
         self.main_window.selectFirst.clicked.connect(self.selectFirst_clicked)
-        self.main_window.invertSelection.clicked.connect(self.invertSelection_clicked)
+        self.main_window.invertSelection.clicked.connect(
+            self.invertSelection_clicked,
+        )
         self.main_window.execute.clicked.connect(self.execute_clicked)
         self.main_window.cancel.clicked.connect(self.cancel_clicked)
         self.main_window.filter.textChanged.connect(self.filter_textChanged)
@@ -315,7 +335,8 @@ class DupfinderApp(QApplication):
         self.aggregator = HashAggregator()
         self.dupedetector.duplicateFound.connect(self.aggregator.add)
 
-        # set up the aggregator and then the filter model to filter the aggregator model
+        # set up the aggregator and then the filter model to filter the
+        # aggregator model
         self.filter_model = TreeSortFilterProxyModel()
         self.filter_model.setSourceModel(self.aggregator)
         self.main_window.treeView.setModel(self.filter_model)
@@ -361,8 +382,8 @@ class DupfinderApp(QApplication):
         self.scanners = {}
 
         def stop_scanners():
-            # this is the only thing that stops the program from dying when closed
-            # abruptly when very recently open.  to stop the scanners!
+            # this is the only thing that stops the program from dying when
+            # closed abruptly when very recently open.  to stop the scanners!
             for s in list(self.scanners.keys()):
                 s.stop()
             for s in list(self.scanners.keys()):
@@ -374,24 +395,31 @@ class DupfinderApp(QApplication):
         self.main_window.closeEvent = self.main_window_closed
 
     def main_window_closed(self, event):
-        self.settings.setValue("mainWindowGeometry", self.main_window.saveGeometry())
+        self.settings.setValue(
+            "mainWindowGeometry",
+            self.main_window.saveGeometry(),
+        )
         self.settings.setValue("mainWindowState", self.main_window.saveState())
         for col in range(3):
             self.settings.setValue(
-                "columnWidth%s" % col, self.main_window.treeView.columnWidth(col)
+                "columnWidth%s" % col,
+                self.main_window.treeView.columnWidth(col),
             )
         event.accept()
 
     def dispatch_scan(self, qstr_directory):
-        flt = (
-            lambda p: not os.path.basename(p).startswith(".") and os.stat(p).st_size > 0
-        )
+        def flt(p):
+            bname = os.path.basename(p)
+            return not bname.startswith(".") and os.stat(p).st_size > 0
+
         scanner = TreeHasher(qstr_directory, flt, cacheobject=self.cache)
         scanner.hashed.connect(lambda p, s: self.dupedetector.add(s, p))
         scanner.begun.connect(lambda: self.on_scan_begun(scanner))
         scanner.finished.connect(lambda: self.on_scan_finished(scanner))
         scanner.error.connect(lambda e: self.on_scan_error(scanner, e))
-        scanner.progress.connect(lambda x, y: self.on_progress_updated(scanner, x, y))
+        scanner.progress.connect(
+            lambda x, y: self.on_progress_updated(scanner, x, y),
+        )
         self.scanners[scanner] = [0, 1]
         self.progressbar.setVisible(True)
         scanner.start()
@@ -406,8 +434,8 @@ class DupfinderApp(QApplication):
 
     def _setSelectionAction(self, action_id, action_text):
         source_model = self.filter_model.sourceModel()
-        filter_selection = self.main_window.treeView.selectionModel().selection()
-        for index in filter_selection.indexes():
+        fltselection = self.main_window.treeView.selectionModel().selection()
+        for index in fltselection.indexes():
             if index.column() != 0:
                 continue
             source_index = self.filter_model.mapToSource(index)
@@ -477,12 +505,14 @@ class DupfinderApp(QApplication):
                 first_child = self.filter_model.index(0, 0, index)
                 selection_model.select(
                     first_child,
-                    QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows,
+                    QItemSelectionModel.Select | QItemSelectionModel.Rows,
                 )
 
     def invertSelection_clicked(self):
         selection_model = self.main_window.treeView.selectionModel()
         """selects every first visible match on every toplevel item"""
+        select_rows = QItemSelectionModel.Select | QItemSelectionModel.Rows
+        deselect_rows = QItemSelectionModel.Deselect | QItemSelectionModel.Rows
         for n in range(self.filter_model.rowCount()):
             index = self.filter_model.index(n, 0)
             if self.filter_model.hasChildren(index):
@@ -491,14 +521,12 @@ class DupfinderApp(QApplication):
                     if selection_model.isSelected(child):
                         selection_model.select(
                             child,
-                            QtCore.QItemSelectionModel.Deselect
-                            | QtCore.QItemSelectionModel.Rows,
+                            deselect_rows,
                         )
                     else:
                         selection_model.select(
                             child,
-                            QtCore.QItemSelectionModel.Select
-                            | QtCore.QItemSelectionModel.Rows,
+                            select_rows,
                         )
 
     def filter_textChanged(self, new_text):
@@ -516,7 +544,9 @@ class DupfinderApp(QApplication):
 
     def on_scan_error(self, scanner, e):
         name = os.path.basename(scanner.directory)
-        self.main_window.statusbar.showMessage("Error scanning %s: %s" % (name, e))
+        self.main_window.statusbar.showMessage(
+            "Error scanning %s: %s" % (name, e),
+        )
         del self.scanners[scanner]
         self.progressbar.setVisible(bool(list(self.scanners.keys())))
 
