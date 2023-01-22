@@ -57,9 +57,16 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
+         <widget class="QPushButton" name="selectOldest">
+          <property name="text">
+           <string>Select oldes&amp;t matches</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="selectFirst">
           <property name="text">
-           <string>Select every first &amp;match</string>
+           <string>Select first &amp;matches</string>
           </property>
          </widget>
         </item>

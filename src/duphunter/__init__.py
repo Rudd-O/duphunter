@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import datetime
 import sys
 import os
 import hashlib
@@ -103,7 +104,7 @@ def scan_dir(folder, filter_func, hashfunc, cacheobject=None):
                         mtime,
                     )
                     if sum_ is not None:
-                        yield full_path, sum_
+                        yield full_path, sum_, mtime
                         continue
                 sum_ = md5ify(full_path)
                 if cacheobject and hashfuncname:
@@ -113,7 +114,7 @@ def scan_dir(folder, filter_func, hashfunc, cacheobject=None):
                         mtime,
                         sum_,
                     )
-                yield full_path, sum_
+                yield full_path, sum_, mtime
 
 
 class TreeHasher(QObject):
@@ -131,7 +132,7 @@ class TreeHasher(QObject):
     If the scanner is stopped with stop(), then no signals are emitted anymore.
     """
 
-    hashed = pyqtSignal((str, str))
+    hashed = pyqtSignal((str, str, float))
     progress = pyqtSignal((int, int))
     begun = pyqtSignal()
     finished = pyqtSignal()
@@ -169,13 +170,13 @@ class TreeHasher(QObject):
         try:
             numfiles = estimate_scan_dir(self.directory, self.filter_func)
             counter = 0
-            for full_path, sum_ in scan_dir(
+            for full_path, sum_, mtime in scan_dir(
                 self.directory, self.filter_func, self.hasher, self.cache
             ):
                 if self.stopped:
                     break
                 counter = counter + 1
-                self.hashed.emit(full_path, sum_)
+                self.hashed.emit(full_path, sum_, mtime)
                 self.progress.emit(counter, numfiles)
             if not self.stopped:
                 self.finished.emit()
@@ -213,13 +214,13 @@ class DuplicateDetector(QObject):
     the same hash, it is ignored.
     """
 
-    duplicateFound = pyqtSignal((str, str))
+    duplicateFound = pyqtSignal((str, str, float))
 
     def __init__(self):
         QObject.__init__(self)
         self.dupes = {}
 
-    def add(self, sum_, path):
+    def add(self, sum_, path, mtime):
         """Add the pair sum, path to the duplicate detector, trigger signal
         if appropriate."""
         if sum_ not in self.dupes:
@@ -231,9 +232,9 @@ class DuplicateDetector(QObject):
             paths.add(path)
             return
         if len(paths) == 1:
-            self.duplicateFound.emit(sum_, list(paths)[0])
+            self.duplicateFound.emit(sum_, list(paths)[0], mtime)
         paths.add(path)
-        self.duplicateFound.emit(sum_, path)
+        self.duplicateFound.emit(sum_, path, mtime)
 
 
 ACTION_KEEP = 1
@@ -254,12 +255,13 @@ class HashAggregator(QtGui.QStandardItemModel):
             QtGui.QStandardItem(),
             QtGui.QStandardItem(),
             QtGui.QStandardItem(),
+            QtGui.QStandardItem(),
         ]
-        for n, t in enumerate(["Action", "Matches", "Folder"]):
+        for n, t in enumerate(["Action", "Matches", "Folder", "Modification time"]):
             header[n].setText(t)
             self.setHorizontalHeaderItem(n, header[n])
 
-    def add(self, sum_, path):
+    def add(self, sum_, path, mtime):
         """Aggregate the sum and the path to the self.model structure."""
         try:
             item = self.hashes[sum_]
@@ -273,15 +275,18 @@ class HashAggregator(QtGui.QStandardItemModel):
         str_path = str(path)  # here I *know* the path is a regular string
         fitem = QtGui.QStandardItem()
         ditem = QtGui.QStandardItem()
+        mtimeitem = QtGui.QStandardItem()
         fitem.setData(path)
         ditem.setData(path)
+        mtimeitem.setData(mtime)
         fitem.setText(os.path.basename(str_path))
         ditem.setText(os.path.dirname(str_path))
+        mtimeitem.setText(datetime.datetime.fromtimestamp(mtime).isoformat())
         aitem = QtGui.QStandardItem()
         aitem.setText("Keep")
         aitem.setData(ACTION_KEEP)
         # count = item.rowCount()
-        item.appendRow([aitem, fitem, ditem])
+        item.appendRow([aitem, fitem, ditem, mtimeitem])
 
 
 class TreeSortFilterProxyModel(QtCore.QSortFilterProxyModel):
@@ -322,6 +327,7 @@ class DupfinderApp(QApplication):
         self.main_window.addFolder.clicked.connect(self.addFolder_clicked)
         self.main_window.removeThis.clicked.connect(self.removeThis_clicked)
         self.main_window.keepThis.clicked.connect(self.keepThis_clicked)
+        self.main_window.selectOldest.clicked.connect(self.selectOldest_clicked)
         self.main_window.selectFirst.clicked.connect(self.selectFirst_clicked)
         self.main_window.invertSelection.clicked.connect(
             self.invertSelection_clicked,
@@ -413,7 +419,7 @@ class DupfinderApp(QApplication):
             return not bname.startswith(".") and os.stat(p).st_size > 0
 
         scanner = TreeHasher(qstr_directory, flt, cacheobject=self.cache)
-        scanner.hashed.connect(lambda p, s: self.dupedetector.add(s, p))
+        scanner.hashed.connect(lambda p, s, m: self.dupedetector.add(s, p, m))
         scanner.begun.connect(lambda: self.on_scan_begun(scanner))
         scanner.finished.connect(lambda: self.on_scan_finished(scanner))
         scanner.error.connect(lambda e: self.on_scan_error(scanner, e))
@@ -505,6 +511,32 @@ class DupfinderApp(QApplication):
                 first_child = self.filter_model.index(0, 0, index)
                 selection_model.select(
                     first_child,
+                    QItemSelectionModel.Select | QItemSelectionModel.Rows,
+                )
+
+    def selectOldest_clicked(self):
+        selection_model = self.main_window.treeView.selectionModel()
+        """selects every oldest visible match on every toplevel item"""
+        for n in range(self.filter_model.rowCount()):
+            index = self.filter_model.index(n, 0)
+            if self.filter_model.hasChildren(index):
+                mtimes = []
+                for i in range(self.filter_model.rowCount(index)):
+                    thechild = self.filter_model.index(i, 0, index)
+                    child = self.filter_model.index(i, 3, index)
+                    realchild = self.filter_model.mapToSource(child)
+                    mtime = (
+                        self.filter_model.sourceModel()
+                        .itemFromIndex(
+                            realchild,
+                        )
+                        .data()
+                    )
+                    mtimes.append((mtime, thechild))
+                mtimes = list(sorted(mtimes))
+                oldest = mtimes[0][1]
+                selection_model.select(
+                    oldest,
                     QItemSelectionModel.Select | QItemSelectionModel.Rows,
                 )
 
