@@ -14,7 +14,7 @@ from threading import Thread, Lock
 import pickle
 from pkg_resources import resource_filename, DistributionNotFound
 
-__version__ = "0.1.10"
+__version__ = "0.1.11"
 
 
 class HashCache:
@@ -88,8 +88,8 @@ def scan_dir(folder, filter_func, hashfunc, cacheobject=None):
     # change between releases, instead of using the name of the
     # hash function, we use an MD5 sum of the disassembly of the
     # bytecode of the hashing function.
-    dissed = dis.dis(hashfunc)
-    hashfuncname = hashlib.md5(str(dissed).encode("utf-8")).hexdigest()
+    dissed = dis.Bytecode(hashfunc).dis()
+    hashfuncname = hashlib.md5(dissed.encode("utf-8")).hexdigest()
 
     for path, subfolders, files in os.walk(folder):
         for f in files:
