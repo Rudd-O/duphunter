@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import datetime
+import dis
 import sys
 import os
 import hashlib
@@ -13,7 +14,7 @@ from threading import Thread, Lock
 import pickle
 from pkg_resources import resource_filename, DistributionNotFound
 
-__version__ = "0.1.9"
+__version__ = "0.1.10"
 
 
 class HashCache:
@@ -82,13 +83,13 @@ def scan_dir(folder, filter_func, hashfunc, cacheobject=None):
     files' hash func results to the `sums` dictionary of lists, where the
     key is the result of the hash func, and the value is the list of files
     that compute to that hash func result."""
-    try:
-        hashfuncname = hashfunc.__name__
-    except AttributeError:
-        try:
-            hashfuncname = hashfunc.__name__
-        except AttributeError:
-            hashfuncname = None
+
+    # To make the cache worthwhile — as the hashing function may
+    # change between releases, instead of using the name of the
+    # hash function, we use an MD5 sum of the disassembly of the
+    # bytecode of the hashing function.
+    dissed = dis.dis(hashfunc)
+    hashfuncname = hashlib.md5(str(dissed).encode("utf-8")).hexdigest()
 
     for path, subfolders, files in os.walk(folder):
         for f in files:
