@@ -259,7 +259,14 @@ class HashAggregator(QtGui.QStandardItemModel):
             QtGui.QStandardItem(),
             QtGui.QStandardItem(),
         ]
-        for n, t in enumerate(["Action", "Matches", "Folder", "Modification time"]):
+        for n, t in enumerate(
+            [
+                "Action",
+                "Matches",
+                "Folder",
+                "Modification time",
+            ]
+        ):
             header[n].setText(t)
             self.setHorizontalHeaderItem(n, header[n])
 
@@ -329,7 +336,9 @@ class DupfinderApp(QApplication):
         self.main_window.addFolder.clicked.connect(self.addFolder_clicked)
         self.main_window.removeThis.clicked.connect(self.removeThis_clicked)
         self.main_window.keepThis.clicked.connect(self.keepThis_clicked)
-        self.main_window.selectOldest.clicked.connect(self.selectOldest_clicked)
+        self.main_window.selectOldest.clicked.connect(
+            self.selectOldest_clicked,
+        )
         self.main_window.selectFirst.clicked.connect(self.selectFirst_clicked)
         self.main_window.invertSelection.clicked.connect(
             self.invertSelection_clicked,
