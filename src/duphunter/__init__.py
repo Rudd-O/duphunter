@@ -14,7 +14,7 @@ from threading import Thread, Lock
 import pickle
 from pkg_resources import resource_filename, DistributionNotFound
 
-__version__ = "0.1.12"
+__version__ = "0.1.13"
 
 
 class HashCache:
@@ -572,7 +572,6 @@ class DupfinderApp(QApplication):
     def autoexpand_rows(self):
         for row in range(self.filter_model.rowCount()):
             index = self.filter_model.index(row, 0)
-            print(index)
             if row == 0:
                 self.main_window.treeView.expandRecursively(index.parent())
             self.main_window.treeView.setFirstColumnSpanned(
