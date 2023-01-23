@@ -14,7 +14,7 @@ from threading import Thread, Lock
 import pickle
 from pkg_resources import resource_filename, DistributionNotFound
 
-__version__ = "0.1.11"
+__version__ = "0.1.12"
 
 
 class HashCache:
@@ -359,12 +359,6 @@ class DupfinderApp(QApplication):
         self.main_window.treeView.setModel(self.filter_model)
         self.main_window.treeView.setTextElideMode(QtCore.Qt.ElideMiddle)
 
-        # ensure that rows autoexpand...
-        def autoexpand_rows(parent, start_int, end_int):
-            self.main_window.treeView.expandRecursively(parent)
-
-        self.filter_model.rowsInserted.connect(autoexpand_rows)
-
         # restore window state
         mainwindowgeo = self.settings.value("mainWindowGeometry")
         if mainwindowgeo:
@@ -575,6 +569,18 @@ class DupfinderApp(QApplication):
                             select_rows,
                         )
 
+    def autoexpand_rows(self):
+        for row in range(self.filter_model.rowCount()):
+            index = self.filter_model.index(row, 0)
+            print(index)
+            if row == 0:
+                self.main_window.treeView.expandRecursively(index.parent())
+            self.main_window.treeView.setFirstColumnSpanned(
+                row,
+                index.parent(),
+                True,
+            )
+
     def filter_textChanged(self, new_text):
         self.filter_model.setTextFilter(new_text)
 
@@ -587,6 +593,7 @@ class DupfinderApp(QApplication):
         self.main_window.statusbar.showMessage("Done scanning %s" % name)
         del self.scanners[scanner]
         self.progressbar.setVisible(bool(list(self.scanners.keys())))
+        self.autoexpand_rows()
 
     def on_scan_error(self, scanner, e):
         name = os.path.basename(scanner.directory)
@@ -595,6 +602,7 @@ class DupfinderApp(QApplication):
         )
         del self.scanners[scanner]
         self.progressbar.setVisible(bool(list(self.scanners.keys())))
+        self.autoexpand_rows()
 
     def on_progress_updated(self, scanner, done, allfiles):
         self.scanners[scanner] = [done, allfiles]
