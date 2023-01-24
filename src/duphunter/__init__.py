@@ -2,9 +2,11 @@
 
 import datetime
 import dis
-import sys
-import os
 import hashlib
+import os
+import sys
+import time
+
 from PyQt5 import QtCore
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QItemSelectionModel
 from PyQt5 import uic
@@ -243,7 +245,16 @@ ACTION_KEEP = 1
 ACTION_REMOVE = 2
 
 
-class HashAggregator(QtGui.QStandardItemModel):
+class IterableRowModelMixin(object):
+    def rows(self):
+        for n in range(self.rowCount()):
+            yield self.index(n, 0)
+
+
+class HashAggregator(
+    IterableRowModelMixin,
+    QtGui.QStandardItemModel,
+):
     """
     Incrementally aggregates pairs of (hash, path) into a TreeModel structure
     self.model.
@@ -294,11 +305,10 @@ class HashAggregator(QtGui.QStandardItemModel):
         aitem = QtGui.QStandardItem()
         aitem.setText("Keep")
         aitem.setData(ACTION_KEEP)
-        # count = item.rowCount()
         item.appendRow([aitem, fitem, ditem, mtimeitem])
 
 
-class TreeSortFilterProxyModel(QtCore.QSortFilterProxyModel):
+class TreeSortFilterProxyModel(IterableRowModelMixin, QtCore.QSortFilterProxyModel):
     def __init__(self, *args, **kwargs):
         QtCore.QSortFilterProxyModel.__init__(self, *args, **kwargs)
         self.text_filter = ""
@@ -339,7 +349,9 @@ class DupfinderApp(QApplication):
         self.main_window.selectOldest.clicked.connect(
             self.selectOldest_clicked,
         )
-        self.main_window.selectFirst.clicked.connect(self.selectFirst_clicked)
+        self.main_window.selectNewest.clicked.connect(
+            self.selectNewest_clicked,
+        )
         self.main_window.invertSelection.clicked.connect(
             self.invertSelection_clicked,
         )
@@ -467,8 +479,9 @@ class DupfinderApp(QApplication):
         """commits actions to disk"""
         source_model = self.filter_model.sourceModel()
         paths_to_delete = []
-        for n in range(source_model.rowCount()):
-            index = source_model.index(n, 0)
+        # for each toplevel row (hashes)
+        for index in source_model.rows():
+            # for each subrow inside the toplevel row (dupes)
             for m in reversed(range(source_model.rowCount(index))):
                 rowmarker = source_model.index(m, 0, index)
                 action = source_model.index(m, 0, index)
@@ -510,68 +523,106 @@ class DupfinderApp(QApplication):
     def cancel_clicked(self):
         self.main_window.close()
 
-    def selectFirst_clicked(self):
-        selection_model = self.main_window.treeView.selectionModel()
-        """selects every first visible match on every toplevel item"""
-        for n in range(self.filter_model.rowCount()):
-            index = self.filter_model.index(n, 0)
-            if self.filter_model.hasChildren(index):
-                first_child = self.filter_model.index(0, 0, index)
-                selection_model.select(
-                    first_child,
-                    QItemSelectionModel.Select | QItemSelectionModel.Rows,
+    def _select_x_clicked(self, selector):
+        """selects every oldest visible match on every toplevel item"""
+        model = self.filter_model.sourceModel()
+        selected, notselected, tobeselected = 0, 0, []
+        for index in model.rows():
+            if not model.hasChildren(index):
+                continue
+            mtimes = []
+            for i in range(model.rowCount(index)):
+                realchild = model.index(i, 0, index)
+                filteredchild = self.filter_model.mapFromSource(realchild)
+                mtime = model.itemFromIndex(model.index(i, 3, index))
+                mtimes.append(
+                    (
+                        mtime,
+                        filteredchild,
+                        filteredchild.isValid(),
+                    )
                 )
+
+            _, oldestchild, isvalid = selector(mtimes)
+            if isvalid:
+                tobeselected.append(oldestchild)
+                selected += 1
+            else:
+                notselected += 1
+
+        selection_model = self.main_window.treeView.selectionModel()
+        selectedindexes = [
+            x for x in selection_model.selection().indexes() if x.column() == 0
+        ]
+        newselection = QtCore.QItemSelection()
+        for t in set(selectedindexes + tobeselected):
+            newselection.select(t, t)
+        mode = QItemSelectionModel.Select | QItemSelectionModel.Rows
+        start = time.time()
+        self.main_window.treeView.setUpdatesEnabled(False)
+        selection_model.select(newselection, mode)
+        self.main_window.treeView.setUpdatesEnabled(True)
+        end = time.time() - start
+        f = "Selected %s visible items; skipped %s filtered items; %.2fs"
+        self.main_window.statusbar.showMessage(
+            f
+            % (
+                selected,
+                notselected,
+                end,
+            )
+        )
 
     def selectOldest_clicked(self):
-        selection_model = self.main_window.treeView.selectionModel()
-        """selects every oldest visible match on every toplevel item"""
-        for n in range(self.filter_model.rowCount()):
-            index = self.filter_model.index(n, 0)
-            if self.filter_model.hasChildren(index):
-                mtimes = []
-                for i in range(self.filter_model.rowCount(index)):
-                    thechild = self.filter_model.index(i, 0, index)
-                    child = self.filter_model.index(i, 3, index)
-                    realchild = self.filter_model.mapToSource(child)
-                    mtime = (
-                        self.filter_model.sourceModel()
-                        .itemFromIndex(
-                            realchild,
-                        )
-                        .data()
-                    )
-                    mtimes.append((mtime, thechild))
-                mtimes = list(sorted(mtimes))
-                oldest = mtimes[0][1]
-                selection_model.select(
-                    oldest,
-                    QItemSelectionModel.Select | QItemSelectionModel.Rows,
-                )
+        def selector(mtimes):
+            mtimes = list(sorted(mtimes))
+            return mtimes[0]
+
+        return self._select_x_clicked(selector)
+
+    def selectNewest_clicked(self):
+        def selector(mtimes):
+            mtimes = list(sorted(mtimes))
+            return mtimes[-1]
+
+        return self._select_x_clicked(selector)
 
     def invertSelection_clicked(self):
-        selection_model = self.main_window.treeView.selectionModel()
         """selects every first visible match on every toplevel item"""
-        select_rows = QItemSelectionModel.Select | QItemSelectionModel.Rows
-        deselect_rows = QItemSelectionModel.Deselect | QItemSelectionModel.Rows
-        for n in range(self.filter_model.rowCount()):
-            index = self.filter_model.index(n, 0)
-            if self.filter_model.hasChildren(index):
-                for m in range(self.filter_model.rowCount(index)):
-                    child = self.filter_model.index(m, 0, index)
-                    if selection_model.isSelected(child):
-                        selection_model.select(
-                            child,
-                            deselect_rows,
-                        )
-                    else:
-                        selection_model.select(
-                            child,
-                            select_rows,
-                        )
+        selection_model = self.main_window.treeView.selectionModel()
+        selected, deselected, tobeselected = 0, 0, []
+        for index in self.filter_model.rows():
+            if not self.filter_model.hasChildren(index):
+                continue
+            for m in range(self.filter_model.rowCount(index)):
+                child = self.filter_model.index(m, 0, index)
+                if not selection_model.isSelected(child):
+                    tobeselected.append(child)
+                    selected += 1
+                else:
+                    deselected += 1
+        newselection = QtCore.QItemSelection()
+        for t in set(tobeselected):
+            newselection.select(t, t)
+        mode = QItemSelectionModel.Select | QItemSelectionModel.Rows
+        start = time.time()
+        self.main_window.treeView.setUpdatesEnabled(False)
+        selection_model.clear()
+        selection_model.select(newselection, mode)
+        self.main_window.treeView.setUpdatesEnabled(True)
+        end = time.time() - start
+        f = "Selected %s unselected items; deselected %s selected items; %.2fs"
+        self.main_window.statusbar.showMessage(
+            f
+            % (
+                selected,
+                deselected,
+                end,
+            )
+        )
 
     def autoexpand_rows(self):
-        for row in range(self.filter_model.rowCount()):
-            index = self.filter_model.index(row, 0)
+        for row, index in enumerate(self.filter_model.rows()):
             if row == 0:
                 self.main_window.treeView.expandRecursively(index.parent())
             self.main_window.treeView.setFirstColumnSpanned(

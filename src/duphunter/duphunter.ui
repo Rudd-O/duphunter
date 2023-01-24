@@ -64,9 +64,9 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="selectFirst">
+         <widget class="QPushButton" name="selectNewest">
           <property name="text">
-           <string>Select first &amp;matches</string>
+           <string>Select &amp;newest matches</string>
           </property>
          </widget>
         </item>
