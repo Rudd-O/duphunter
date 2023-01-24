@@ -16,7 +16,7 @@ from threading import Thread, Lock
 import pickle
 from pkg_resources import resource_filename, DistributionNotFound
 
-__version__ = "0.1.17"
+__version__ = "0.1.18"
 
 
 class HashCache:
@@ -498,6 +498,7 @@ class DupfinderApp(QApplication):
         deleted = 0
         not_deleted = 0
         self.main_window.treeView.setUpdatesEnabled(False)
+        self.main_window.treeView.selectionModel().clear()
         for n, pair in enumerate(paths_to_delete):
             index, p = pair
             fn = os.path.basename(p)
