@@ -16,7 +16,7 @@ from threading import Thread, Lock
 import pickle
 from pkg_resources import resource_filename, DistributionNotFound
 
-__version__ = "0.1.16"
+__version__ = "0.1.17"
 
 
 class HashCache:
