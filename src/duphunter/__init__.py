@@ -308,7 +308,10 @@ class HashAggregator(
         item.appendRow([aitem, fitem, ditem, mtimeitem])
 
 
-class TreeSortFilterProxyModel(IterableRowModelMixin, QtCore.QSortFilterProxyModel):
+class TreeSortFilterProxyModel(
+    IterableRowModelMixin,
+    QtCore.QSortFilterProxyModel,
+):
     def __init__(self, *args, **kwargs):
         QtCore.QSortFilterProxyModel.__init__(self, *args, **kwargs)
         self.text_filter = ""
@@ -479,6 +482,7 @@ class DupfinderApp(QApplication):
         """commits actions to disk"""
         source_model = self.filter_model.sourceModel()
         paths_to_delete = []
+        start = time.time()
         # for each toplevel row (hashes)
         for index in source_model.rows():
             # for each subrow inside the toplevel row (dupes)
@@ -512,12 +516,20 @@ class DupfinderApp(QApplication):
             self.progressbar.setMaximum(len(paths_to_delete))
             self.progressbar.setValue(n + 1)
         self.main_window.treeView.setUpdatesEnabled(True)
+        end = time.time() - start
+        f = "; ".join(
+            [
+                "Removed %s files",
+                "could not remove %s files",
+                "%.2fs",
+            ]
+        )
         self.main_window.statusbar.showMessage(
-            "Removed %s files" % (deleted,)
-            + (
-                ", could not remove %s files" % (not_deleted,)
-                if not_deleted > 0
-                else ""
+            f
+            % (
+                deleted,
+                not_deleted,
+                end,
             )
         )
         self.progressbar.setVisible(bool(list(self.scanners.keys())))
