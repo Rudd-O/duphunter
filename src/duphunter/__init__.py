@@ -493,6 +493,7 @@ class DupfinderApp(QApplication):
         self.progressbar.setVisible(True)
         deleted = 0
         not_deleted = 0
+        self.main_window.treeView.setUpdatesEnabled(False)
         for n, pair in enumerate(paths_to_delete):
             index, p = pair
             fn = os.path.basename(p)
@@ -510,6 +511,7 @@ class DupfinderApp(QApplication):
                 not_deleted = not_deleted + 1
             self.progressbar.setMaximum(len(paths_to_delete))
             self.progressbar.setValue(n + 1)
+        self.main_window.treeView.setUpdatesEnabled(True)
         self.main_window.statusbar.showMessage(
             "Removed %s files" % (deleted,)
             + (
@@ -524,11 +526,13 @@ class DupfinderApp(QApplication):
         self.main_window.close()
 
     def _select_x_clicked(self, selector):
-        """selects every oldest visible match on every toplevel item"""
+        """Selects every matching visible match on every toplevel item."""
         model = self.filter_model.sourceModel()
         selected, notselected, tobeselected = 0, 0, []
         for index in model.rows():
-            if not model.hasChildren(index):
+            if model.rowCount(index) < 2:
+                # Skip any hashes that only have one file.
+                notselected += 1
                 continue
             mtimes = []
             for i in range(model.rowCount(index)):
@@ -543,8 +547,8 @@ class DupfinderApp(QApplication):
                     )
                 )
 
-            _, oldestchild, isvalid = selector(mtimes)
-            if isvalid:
+            _, oldestchild, isvisible = selector(mtimes)
+            if isvisible:
                 tobeselected.append(oldestchild)
                 selected += 1
             else:
@@ -563,7 +567,13 @@ class DupfinderApp(QApplication):
         selection_model.select(newselection, mode)
         self.main_window.treeView.setUpdatesEnabled(True)
         end = time.time() - start
-        f = "Selected %s visible items; skipped %s filtered items; %.2fs"
+        f = "; ".join(
+            [
+                "Selected %s visible items",
+                "skipped %s filtered or unique items",
+                "%.2fs",
+            ]
+        )
         self.main_window.statusbar.showMessage(
             f
             % (
@@ -588,30 +598,42 @@ class DupfinderApp(QApplication):
         return self._select_x_clicked(selector)
 
     def invertSelection_clicked(self):
-        """selects every first visible match on every toplevel item"""
+        """Invert selection on all non-unique visible items."""
         selection_model = self.main_window.treeView.selectionModel()
         selected, deselected, tobeselected = 0, 0, []
-        for index in self.filter_model.rows():
-            if not self.filter_model.hasChildren(index):
+        # We operate only on the filter model.
+        model = self.filter_model
+        for index in model.rows():
+            # For each hash in the model.
+            if model.rowCount(index) < 2:
+                # Skip any hashes that only have one visible file.
+                deselected += 1
                 continue
-            for m in range(self.filter_model.rowCount(index)):
-                child = self.filter_model.index(m, 0, index)
-                if not selection_model.isSelected(child):
+            for m in range(model.rowCount(index)):
+                child = model.index(m, 0, index)
+                if selection_model.isSelected(child):
+                    deselected += 1
+                else:
                     tobeselected.append(child)
                     selected += 1
-                else:
-                    deselected += 1
+
+        start = time.time()
         newselection = QtCore.QItemSelection()
         for t in set(tobeselected):
             newselection.select(t, t)
         mode = QItemSelectionModel.Select | QItemSelectionModel.Rows
-        start = time.time()
         self.main_window.treeView.setUpdatesEnabled(False)
         selection_model.clear()
         selection_model.select(newselection, mode)
         self.main_window.treeView.setUpdatesEnabled(True)
         end = time.time() - start
-        f = "Selected %s unselected items; deselected %s selected items; %.2fs"
+        f = "; ".join(
+            [
+                "Selected %s unselected items",
+                "deselected %s selected or unique items",
+                "%.2fs",
+            ]
+        )
         self.main_window.statusbar.showMessage(
             f
             % (
