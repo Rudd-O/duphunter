@@ -59,14 +59,14 @@
         <item>
          <widget class="QPushButton" name="selectOldest">
           <property name="text">
-           <string>Select oldes&amp;t matches</string>
+           <string>Select oldes&amp;t duplicates</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QPushButton" name="selectNewest">
           <property name="text">
-           <string>Select &amp;newest matches</string>
+           <string>Select &amp;newest duplicates</string>
           </property>
          </widget>
         </item>
