@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+dynamic = ["version", "readme"]
+name = "duphunter"
+dependencies = [
+    "iniparse", "jinja2", "decorator"
+]
+authors = [
+    {name = "Manuel Amador (Rudd-O)", email = "rudd-o@rudd-o.com"}
+]
+license = { file = "COPYING" }
+description = "An application that finds and lets you delete duplicate files"
+keywords = ["media", "archiving", "duplicate"]
+classifiers = [
+    'Intended Audience :: End Users/Desktop',
+    'Intended Audience :: System Administrators',
+    'License :: OSI Approved :: GNU General Public License (GPL)',
+    'Operating System :: POSIX :: Linux',
+    'Programming Language :: Python :: 2 :: Only',
+    'Programming Language :: Python :: 2.7',
+    'Topic :: Utilities',
+]
+
+[project.urls]
+Homepage = "https://github.com/Rudd-O/duphunter"
+Repository = "https://github.com/Rudd-O/duphunter"
+Issues = "https://github.com/Rudd-O/duphunter/issues"
+
+[project.scripts]
+duphunter = "duphunter:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "duphunter.__version__"}
+readme = {file = "README.md"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+duphunter = ["src/duphunter/*.ui", "src/duphunter/applications/*.desktop"]

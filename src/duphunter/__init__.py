@@ -14,9 +14,9 @@ from PyQt5 import QtGui
 from PyQt5.QtWidgets import QApplication, QFileDialog, QProgressBar
 from threading import Thread, Lock
 import pickle
-from pkg_resources import resource_filename, DistributionNotFound
+from importlib.resources import files
 
-__version__ = "0.1.18"
+__version__ = "0.1.19"
 
 
 class HashCache:
@@ -338,10 +338,7 @@ class DupfinderApp(QApplication):
     def __init__(self, *args, **kwargs):
         QApplication.__init__(self, *args, **kwargs)
         self.settings = QtCore.QSettings("duphunter", "duphunter")
-        try:
-            uifile = resource_filename(__name__, "duphunter.ui")
-        except DistributionNotFound:
-            uifile = os.path.join(os.path.dirname(__file__), "duphunter.ui")
+        uifile = files("duphunter").joinpath("duphunter.ui")
         self.main_window = uic.loadUi(uifile)
         self.progressbar = QProgressBar()
         self.progressbar.setVisible(False)

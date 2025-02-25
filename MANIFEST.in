@@ -1,4 +1,4 @@
 include README.md
 include COPYING
 include src/duphunter/*.ui
-include applications/*.desktop
+include src/duphunter/applications/*.desktop
