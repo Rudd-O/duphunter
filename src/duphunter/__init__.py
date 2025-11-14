@@ -16,7 +16,7 @@ from threading import Thread, Lock
 import pickle
 from importlib.resources import files
 
-__version__ = "0.1.19"
+__version__ = "0.1.20"
 
 
 class HashCache:

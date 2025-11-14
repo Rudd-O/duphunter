@@ -7,7 +7,7 @@
 %define mybuildnumber %{?build_number}%{?!build_number:1}
 
 Name:           %{_name}
-Version:        0.1.19.1
+Version:        0.1.20
 Release:        %{mybuildnumber}%{?dist}
 Summary:        An application that finds and lets you delete duplicate files
 

@@ -2,3 +2,4 @@ include README.md
 include COPYING
 include src/duphunter/*.ui
 include src/duphunter/applications/*.desktop
+include tox.ini
